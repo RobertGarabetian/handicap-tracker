@@ -2,21 +2,23 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({ 
-  args: { userId: v.optional(v.string()) }, 
-  handler: async (ctx, args) => {
-    if (args.userId) {
-      return await ctx.db.query("rounds")
-        .withIndex("by_user_date", q => q.eq("userId", args.userId))
-        .order("desc")
-        .collect();
+  args: {}, 
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
     }
-    return await ctx.db.query("rounds").order("desc").collect();
+    
+    const userId = identity.subject;
+    return await ctx.db.query("rounds")
+      .withIndex("by_user_date", q => q.eq("userId", userId))
+      .order("desc")
+      .collect();
   }
 });
 
 export const add = mutation({ 
   args: {
-    userId: v.optional(v.string()), 
     date: v.string(), 
     course: v.string(), 
     rating: v.number(), 
@@ -27,14 +29,26 @@ export const add = mutation({
     imageUrl: v.optional(v.string())
   }, 
   handler: async (ctx, args) => {
-    const id = await ctx.db.insert("rounds", args);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    
+    const userId = identity.subject;
+    const id = await ctx.db.insert("rounds", { ...args, userId });
     return id;
   }
 });
 
 export const clearForUser = mutation({ 
-  args: { userId: v.string() }, 
-  handler: async (ctx, { userId }) => {
+  args: {}, 
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    
+    const userId = identity.subject;
     const items = await ctx.db.query("rounds")
       .withIndex("by_user_date", q => q.eq("userId", userId))
       .collect();
@@ -43,11 +57,17 @@ export const clearForUser = mutation({
 });
 
 export const addDemoData = mutation({
-  args: { userId: v.optional(v.string()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    
+    const userId = identity.subject;
     const demoRounds = [
       {
-        userId: args.userId,
+        userId,
         date: "2024-01-15",
         course: "Pebble Beach Golf Links",
         rating: 72.8,
@@ -56,7 +76,7 @@ export const addDemoData = mutation({
         differential: 9.5,
       },
       {
-        userId: args.userId,
+        userId,
         date: "2024-01-22",
         course: "Augusta National",
         rating: 78.1,
@@ -65,7 +85,7 @@ export const addDemoData = mutation({
         differential: 11.4,
       },
       {
-        userId: args.userId,
+        userId,
         date: "2024-01-29",
         course: "St. Andrews Old Course",
         rating: 72.9,
@@ -74,7 +94,7 @@ export const addDemoData = mutation({
         differential: 12.8,
       },
       {
-        userId: args.userId,
+        userId,
         date: "2024-02-05",
         course: "TPC Sawgrass",
         rating: 76.4,
@@ -83,7 +103,7 @@ export const addDemoData = mutation({
         differential: 9.2,
       },
       {
-        userId: args.userId,
+        userId,
         date: "2024-02-12",
         course: "Whistling Straits",
         rating: 77.2,

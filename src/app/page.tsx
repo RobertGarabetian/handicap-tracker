@@ -6,8 +6,44 @@ import { api } from "../../convex/_generated/api";
 import { differential, handicapIndex } from "@/lib/handicap";
 import { performOCR, type OCRResult } from "@/lib/ocr";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { Authenticated, Unauthenticated } from 'convex/react'
+import { SignInButton, UserButton } from '@clerk/nextjs'
 
 export default function Home() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Authenticated>
+        <HandicapTracker />
+      </Authenticated>
+      <Unauthenticated>
+        <SignInPage />
+      </Unauthenticated>
+    </div>
+  )
+}
+
+function SignInPage() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8">
+      <div className="max-w-md w-full mx-auto px-4">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Golf Handicap Tracker</h1>
+          <p className="text-gray-600">Sign in to track your golf handicap</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-center">
+            <SignInButton mode="modal" />
+            <p className="text-sm text-gray-600 mt-4">
+              Track your golf rounds and calculate your handicap automatically
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HandicapTracker() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,15 +56,15 @@ export default function Home() {
     gross: 0,
     date: new Date().toISOString().split('T')[0]
   });
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Convex queries and mutations
-  const rounds = useQuery(api.rounds.list, { userId: undefined }) || [];
+  const rounds = useQuery(api.rounds.list) || [];
   const addRound = useMutation(api.rounds.add);
   const clearData = useMutation(api.rounds.clearForUser);
   const addDemoData = useMutation(api.rounds.addDemoData);
-  
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
@@ -38,10 +74,10 @@ export default function Home() {
       setOcrResult(null);
     }
   };
-  
+
   const handleOCR = async () => {
     if (!selectedFile) return;
-    
+
     setIsProcessing(true);
     try {
       const result = await performOCR(selectedFile);
@@ -60,18 +96,17 @@ export default function Home() {
       setIsProcessing(false);
     }
   };
-  
+
   const handleSaveRound = async () => {
     if (!formData.course || !formData.gross || !formData.rating || !formData.slope) {
       alert("Please fill in all required fields");
       return;
     }
-    
+
     const diff = differential(formData.gross, formData.rating, formData.slope);
-    
+
     try {
       await addRound({
-        userId: undefined,
         date: formData.date,
         course: formData.course,
         rating: formData.rating,
@@ -81,7 +116,7 @@ export default function Home() {
         ocrRaw: ocrResult?.ocrRaw,
         imageUrl: previewUrl || undefined
       });
-      
+
       // Reset form
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -94,45 +129,49 @@ export default function Home() {
         date: new Date().toISOString().split('T')[0]
       });
       if (fileInputRef.current) fileInputRef.current.value = "";
-      
+
     } catch (error) {
       console.error("Failed to save round:", error);
       alert("Failed to save round. Please try again.");
     }
   };
-  
+
   const handleDemoData = async () => {
     try {
-      await addDemoData({ userId: undefined });
+      await addDemoData();
     } catch (error) {
       console.error("Failed to add demo data:", error);
       alert("Failed to add demo data. Please try again.");
     }
   };
-  
+
   const handleClearData = async () => {
     if (confirm("Are you sure you want to clear all your rounds?")) {
       try {
-        await clearData({ userId: "demo" }); // Using demo user for now
+        await clearData();
       } catch (error) {
         console.error("Failed to clear data:", error);
         alert("Failed to clear data. Please try again.");
       }
     }
   };
-  
+
   // Calculate current handicap index
   const differentials = rounds?.map((r: Doc<"rounds">) => r.differential) || [];
   const currentHandicap = handicapIndex(differentials);
-  
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="py-8">
       <div className="max-w-4xl mx-auto px-4">
         <header className="text-center mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <div></div>
+            <UserButton />
+          </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Golf Handicap Tracker</h1>
-          <p className="text-gray-600">Upload scorecard photos and track your handicap automatically</p>
+          <p className="text-gray-600">Track your golf rounds and calculate your handicap</p>
         </header>
-        
+
         {/* Current Handicap Display */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="text-center">
@@ -143,11 +182,11 @@ export default function Home() {
             </p>
           </div>
         </div>
-        
+
         {/* Upload Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Upload Scorecard</h2>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* File Upload */}
             <div>
@@ -158,7 +197,7 @@ export default function Home() {
                 onChange={handleFileSelect}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
               />
-              
+
               {previewUrl && (
                 <div className="mt-4">
                   <img
@@ -176,7 +215,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-            
+
             {/* Form */}
             <div className="space-y-4">
               <div>
@@ -191,7 +230,7 @@ export default function Home() {
                   placeholder="Enter course name"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -205,7 +244,7 @@ export default function Home() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Slope Rating
@@ -218,7 +257,7 @@ export default function Home() {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Gross Score
@@ -230,7 +269,7 @@ export default function Home() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date
@@ -242,7 +281,7 @@ export default function Home() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
-              
+
               {/* Differential Display */}
               {formData.gross > 0 && formData.rating > 0 && formData.slope > 0 && (
                 <div className="bg-gray-50 p-3 rounded-md">
@@ -252,7 +291,7 @@ export default function Home() {
                   </p>
                 </div>
               )}
-              
+
               <button
                 onClick={handleSaveRound}
                 disabled={!formData.course || !formData.gross || !formData.rating || !formData.slope}
@@ -262,7 +301,7 @@ export default function Home() {
               </button>
             </div>
           </div>
-          
+
           {/* OCR Debug Section */}
           {ocrResult && (
             <div className="mt-6">
@@ -280,7 +319,7 @@ export default function Home() {
             </div>
           )}
         </div>
-        
+
         {/* Action Buttons */}
         <div className="flex gap-4 mb-8">
           <button
@@ -296,13 +335,13 @@ export default function Home() {
             Clear My Data
           </button>
         </div>
-        
+
         {/* Rounds Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold">Your Rounds</h2>
           </div>
-          
+
           {rounds && rounds.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
